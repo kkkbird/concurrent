@@ -7,6 +7,12 @@ import (
 
 type WorkerFunction func(context.Context, interface{}) error
 
+const (
+	OverFlowDrop = iota
+	OverFlowReplace
+	OverFlowNolimit
+)
+
 type ModuleOptions struct {
 	FetchChanCount    int
 	FetchBufferLen    int
@@ -67,7 +73,14 @@ func (m *BufferedModule) Start(ctx context.Context) {
 			return
 		case data := <-m.dataChan:
 			if len(m.dataBuffer) > m.opts.FetchBufferLen {
-				//TODO: add OverflowBehaivour here
+				switch m.opts.OverflowBehaivour {
+				case OverFlowDrop:
+					continue
+				case OverFlowReplace:
+					m.dataBuffer = m.dataBuffer[1:]
+				case OverFlowNolimit:
+					//do nothing, just append the data buffer
+				}
 			}
 			m.dataBuffer = append(m.dataBuffer, data)
 		case _pubChan <- first:

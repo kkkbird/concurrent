@@ -16,6 +16,7 @@ const (
 type ModuleOptions struct {
 	FetchChanCount    int
 	FetchBufferLen    int
+	HandleError       bool
 	OverflowBehaivour int //TODO
 	WorkerCount       int
 	F                 WorkerFunction
@@ -26,7 +27,7 @@ type BufferedModule struct {
 	dataBuffer []interface{}
 	ctx        context.Context
 	cancel     context.CancelFunc
-	err        error
+	errChan    chan error
 	opts       *ModuleOptions
 
 	mux sync.Mutex
@@ -56,7 +57,10 @@ func (m *BufferedModule) Start(ctx context.Context) {
 				case <-m.ctx.Done():
 					return
 				case d := <-pubChan:
-					m.opts.F(ctx, d) //TODO: add error handling here
+					err := m.opts.F(ctx, d)
+					if m.errChan != nil {
+						m.errChan <- err
+					}
 				}
 			}
 		}()
@@ -97,10 +101,6 @@ func (m *BufferedModule) Stop() error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	if m.err != nil {
-		return m.err
-	}
-
 	if m.cancel != nil {
 		m.cancel()
 	}
@@ -108,15 +108,23 @@ func (m *BufferedModule) Stop() error {
 	return nil
 }
 
+func (m *BufferedModule) ErrChan() <-chan error {
+	return m.errChan
+}
+
 func (m *BufferedModule) Feed(data interface{}) {
 	m.dataChan <- data
 }
 
 func NewBufferModule(opts ModuleOptions) (*BufferedModule, error) {
-
-	return &BufferedModule{
+	m := &BufferedModule{
 		dataChan:   make(chan interface{}, opts.FetchChanCount),
 		dataBuffer: make([]interface{}, 0, opts.FetchBufferLen),
 		opts:       &opts,
-	}, nil
+	}
+	if opts.HandleError {
+		m.errChan = make(chan error, m.opts.WorkerCount)
+	}
+
+	return m, nil
 }

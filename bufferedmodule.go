@@ -13,11 +13,39 @@ const (
 	OverFlowNolimit
 )
 
+const (
+	ResultDone = iota
+	ResultDropped
+	ResultReplaced
+)
+
+type BufferedModuleResult struct {
+	Data interface{}
+	Err  error
+	Typ  int
+}
+
+func (e BufferedModuleResult) IsDropped() bool {
+	return e.Typ == ResultDropped
+}
+
+func (e BufferedModuleResult) IsReplaced() bool {
+	return e.Typ == ResultReplaced
+}
+
+func newBufferedModuleResult(typ int, data interface{}, err error) BufferedModuleResult {
+	return BufferedModuleResult{
+		Data: data,
+		Err:  err,
+		Typ:  typ,
+	}
+}
+
 type ModuleOptions struct {
 	FetchChanCount    int
 	FetchBufferLen    int
-	HandleError       bool
-	OverflowBehaivour int //TODO
+	HandleResult      bool
+	OverflowBehaivour int
 	WorkerCount       int
 	F                 WorkerFunction
 }
@@ -27,7 +55,7 @@ type BufferedModule struct {
 	dataBuffer []interface{}
 	ctx        context.Context
 	cancel     context.CancelFunc
-	errChan    chan error
+	resultChan chan BufferedModuleResult
 	opts       *ModuleOptions
 
 	mux sync.Mutex
@@ -58,8 +86,8 @@ func (m *BufferedModule) Start(ctx context.Context) {
 					return
 				case d := <-pubChan:
 					err := m.opts.F(ctx, d)
-					if m.errChan != nil {
-						m.errChan <- err
+					if m.resultChan != nil {
+						m.resultChan <- newBufferedModuleResult(ResultDone, d, err)
 					}
 				}
 			}
@@ -80,11 +108,17 @@ func (m *BufferedModule) Start(ctx context.Context) {
 		case <-m.ctx.Done():
 			return
 		case data := <-m.dataChan:
-			if len(m.dataBuffer) > m.opts.FetchBufferLen {
+			if len(m.dataBuffer) >= m.opts.FetchBufferLen {
 				switch m.opts.OverflowBehaivour {
 				case OverFlowDrop:
+					if m.resultChan != nil {
+						m.resultChan <- newBufferedModuleResult(ResultDropped, data, nil)
+					}
 					continue
 				case OverFlowReplace:
+					if m.resultChan != nil {
+						m.resultChan <- newBufferedModuleResult(ResultReplaced, m.dataBuffer[0], nil)
+					}
 					m.dataBuffer = m.dataBuffer[1:]
 				case OverFlowNolimit:
 					//do nothing, just append the data buffer
@@ -108,8 +142,8 @@ func (m *BufferedModule) Stop() error {
 	return nil
 }
 
-func (m *BufferedModule) ErrChan() <-chan error {
-	return m.errChan
+func (m *BufferedModule) ResultChan() <-chan BufferedModuleResult {
+	return m.resultChan
 }
 
 func (m *BufferedModule) Feed(data interface{}) {
@@ -122,8 +156,9 @@ func NewBufferModule(opts ModuleOptions) (*BufferedModule, error) {
 		dataBuffer: make([]interface{}, 0, opts.FetchBufferLen),
 		opts:       &opts,
 	}
-	if opts.HandleError {
-		m.errChan = make(chan error, m.opts.WorkerCount)
+
+	if opts.HandleResult {
+		m.resultChan = make(chan BufferedModuleResult, m.opts.WorkerCount)
 	}
 
 	return m, nil

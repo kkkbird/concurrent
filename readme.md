@@ -2,8 +2,7 @@
 
 ref to [Advanced Go Concurrency Patterns](!https://blog.golang.org/advanced-go-concurrency-patterns)
 
-## how to use
-
+## example
 
 ``` golang
 package main
@@ -42,3 +41,19 @@ func main() {
 ```
 
 more complex [example](/example/main.go)
+
+## options
+
+## FetchBufferLen
+
+length to store job if all worker is busy
+
+### OverflowBehaivour
+
+* OverFlowNolimit: always do jobs, `FetchBufferLen` will be ignored in this case
+* OverFlowDrop : new job will be dropped if jobs in queue exceed `FetchBufferLen`
+* OverFlowReplace : new job will replace first job in waiting job queue if jobs in queue exceed `FetchBufferLen`
+
+### HandleResult
+
+Check if job is done, dropped or Replaced, see [example](/example/main.go) for detail

@@ -8,9 +8,13 @@ import (
 type WorkerFunction func(context.Context, interface{}) error
 
 const (
-	OverFlowDrop = iota
+	defaultBufferLength = 10
+)
+
+const (
+	OverFlowNolimit = iota
+	OverFlowDrop
 	OverFlowReplace
-	OverFlowNolimit
 )
 
 const (
@@ -42,7 +46,7 @@ func newBufferedModuleResult(typ int, data interface{}, err error) BufferedModul
 }
 
 type ModuleOptions struct {
-	FetchChanCount    int
+	//FetchChanCount    int
 	FetchBufferLen    int
 	HandleResult      bool
 	OverflowBehaivour int
@@ -103,7 +107,6 @@ func (m *BufferedModule) Start(ctx context.Context) {
 		} else {
 			_pubChan = nil
 		}
-
 		select {
 		case <-m.ctx.Done():
 			return
@@ -151,8 +154,13 @@ func (m *BufferedModule) Feed(data interface{}) {
 }
 
 func NewBufferModule(opts ModuleOptions) (*BufferedModule, error) {
+	if opts.FetchBufferLen == 0 {
+		opts.FetchBufferLen = defaultBufferLength
+	}
+
 	m := &BufferedModule{
-		dataChan:   make(chan interface{}, opts.FetchChanCount),
+		//dataChan:   make(chan interface{}, opts.FetchChanCount),
+		dataChan:   make(chan interface{}),
 		dataBuffer: make([]interface{}, 0, opts.FetchBufferLen),
 		opts:       &opts,
 	}

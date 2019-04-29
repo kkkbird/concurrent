@@ -1,11 +1,3 @@
-# sample codes implement advanced-go-concurrency-patterns
-
-ref to [Advanced Go Concurrency Patterns](!https://blog.golang.org/advanced-go-concurrency-patterns)
-
-## how to use
-
-
-``` golang
 package main
 
 import (
@@ -38,7 +30,3 @@ func main() {
 
 	m.Start(nil)
 }
-
-```
-
-more complex [example](/example/main.go)

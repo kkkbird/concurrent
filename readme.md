@@ -48,6 +48,8 @@ more complex [example](/example/main.go)
 
 length to store job if all worker is busy
 
+default is `10`
+
 ### OverflowBehaivour
 
 * `OverFlowNolimit`: always do jobs, `FetchBufferLen` will be ignored in this case

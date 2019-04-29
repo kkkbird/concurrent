@@ -28,6 +28,8 @@ type BufferedModule struct {
 	cancel     context.CancelFunc
 	err        error
 	opts       *ModuleOptions
+
+	mux sync.Mutex
 }
 
 func (m *BufferedModule) Start(ctx context.Context) {
@@ -35,7 +37,9 @@ func (m *BufferedModule) Start(ctx context.Context) {
 		ctx = context.Background()
 	}
 
+	m.mux.Lock()
 	m.ctx, m.cancel = context.WithCancel(ctx)
+	m.mux.Unlock()
 
 	pubChan := make(chan interface{})
 	defer close(pubChan)
@@ -90,10 +94,16 @@ func (m *BufferedModule) Start(ctx context.Context) {
 }
 
 func (m *BufferedModule) Stop() error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
 	if m.err != nil {
 		return m.err
 	}
-	m.cancel()
+
+	if m.cancel != nil {
+		m.cancel()
+	}
 
 	return nil
 }
